@@ -105,30 +105,21 @@
         }
       };
 
-stopBtn.onclick = async () => {
-  try {
-    setStatus("stopping...");
-    log({ event: "stop-clicked" });
-
-    if (!vapi) {
-      setStatus("idle");
-      return;
-    }
-
-    // Some SDK versions return a promise; await handles both promise/non-promise.
-    await vapi.stop();
-
-    setStatus("idle");
-    log({ event: "stopped" });
-    vapi = null;
-  } catch (e) {
-    setStatus("stop failed");
-    log({ event: "stop failed", error: { message: e?.message, stack: e?.stack } });
-  }
-};
+      stopBtn.onclick = async () => {
         try {
           setStatus("stopping...");
-          vapi?.stop();
+          log({ event: "stop-clicked" });
+
+          if (!vapi) {
+            setStatus("idle");
+            return;
+          }
+
+          await vapi.stop();
+
+          setStatus("idle");
+          log({ event: "stopped" });
+          vapi = null;
         } catch (e) {
           setStatus("stop failed");
           log({ event: "stop failed", error: { message: e?.message, stack: e?.stack } });
