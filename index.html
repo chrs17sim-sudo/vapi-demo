@@ -39,7 +39,8 @@
       const stopBtn = document.getElementById("stopBtn");
       const publicKeyEl = document.getElementById("publicKey");
       const assistantIdEl = document.getElementById("assistantId");
-
+const buildEl = document.getElementById("build");
+buildEl.textContent = `Build: ${new Date().toISOString()}`;
       function setStatus(s) {
         statusEl.textContent = `Status: ${s}`;
       }
@@ -94,6 +95,7 @@
         } catch (e) {
           setStatus("start failed");
           log({ event: "start failed", error: { message: e?.message, stack: e?.stack } });
+          <div id="build"></div>
         }
       };
 
