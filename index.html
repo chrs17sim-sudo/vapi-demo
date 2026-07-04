@@ -9,10 +9,12 @@
       button { padding: 12px 16px; margin-right: 8px; font-size: 16px; cursor: pointer; }
       #status { margin-top: 16px; padding: 10px 12px; background: #f5f5f5; border-radius: 8px; }
       #log { margin-top: 12px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
+      #build { margin-top: 8px; font-size: 12px; color: #666; }
       input { padding: 10px 12px; width: 100%; max-width: 520px; font-size: 14px; }
       label { display:block; margin: 16px 0 6px; font-weight: 600; }
     </style>
   </head>
+
   <body>
     <h1>Vapi Voice Demo</h1>
 
@@ -29,18 +31,20 @@
 
     <div id="status">Status: idle</div>
     <div id="log"></div>
+    <div id="build"></div>
 
     <script type="module">
-    import Vapi from "https://esm.sh/@vapi-ai/web@2";  
+      import Vapi from "https://esm.sh/@vapi-ai/web@2";
 
       const statusEl = document.getElementById("status");
       const logEl = document.getElementById("log");
+      const buildEl = document.getElementById("build");
+
       const startBtn = document.getElementById("startBtn");
       const stopBtn = document.getElementById("stopBtn");
       const publicKeyEl = document.getElementById("publicKey");
       const assistantIdEl = document.getElementById("assistantId");
-const buildEl = document.getElementById("build");
-buildEl.textContent = `Build: ${new Date().toISOString()}`;
+
       function setStatus(s) {
         statusEl.textContent = `Status: ${s}`;
       }
@@ -55,6 +59,9 @@ buildEl.textContent = `Build: ${new Date().toISOString()}`;
             `${new Date().toISOString()}  ${String(obj)}\n\n` + logEl.textContent;
         }
       }
+
+      // Build marker (helps confirm you're seeing the latest deployed page)
+      if (buildEl) buildEl.textContent = `Build: ${new Date().toISOString()}`;
 
       setStatus("ready");
       log({ event: "script-loaded", vapiType: typeof Vapi });
@@ -95,7 +102,6 @@ buildEl.textContent = `Build: ${new Date().toISOString()}`;
         } catch (e) {
           setStatus("start failed");
           log({ event: "start failed", error: { message: e?.message, stack: e?.stack } });
-          <div id="build"></div>
         }
       };
 
