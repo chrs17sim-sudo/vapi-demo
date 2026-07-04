@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Walaa demo claims</title>
+    <title>Vapi Voice Demo</title>
     <style>
       body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
       button { padding: 12px 16px; margin-right: 8px; font-size: 16px; cursor: pointer; }
@@ -14,10 +14,10 @@
     </style>
   </head>
   <body>
-    <h1>Walaa demo claims</h1>
+    <h1>Vapi Voice Demo</h1>
 
     <label for="publicKey">Vapi Public Key</label>
-    <input id="publicKey" placeholder="Paste your Vapi PUBLIC key (pk_...)" />
+    <input id="publicKey" placeholder="Paste your Vapi PUBLIC key" />
 
     <label for="assistantId">Assistant ID</label>
     <input id="assistantId" placeholder="Paste your assistant id (asst_...)" />
@@ -31,9 +31,7 @@
     <div id="log"></div>
 
     <script type="module">
-  import Vapi from "https://esm.sh/@vapi-ai/web";
-  // rest of your code...
-</script>
+      import Vapi from "https://esm.sh/@vapi-ai/web";
 
       const statusEl = document.getElementById("status");
       const logEl = document.getElementById("log");
@@ -48,26 +46,28 @@
 
       function log(obj) {
         try {
-          logEl.textContent = `${new Date().toISOString()}  ${JSON.stringify(obj, null, 2)}\n\n` + logEl.textContent;
+          logEl.textContent =
+            `${new Date().toISOString()}  ${JSON.stringify(obj, null, 2)}\n\n` +
+            logEl.textContent;
         } catch {
-          logEl.textContent = `${new Date().toISOString()}  ${String(obj)}\n\n` + logEl.textContent;
+          logEl.textContent =
+            `${new Date().toISOString()}  ${String(obj)}\n\n` + logEl.textContent;
         }
       }
+
+      setStatus("ready");
+      log({ event: "script-loaded", vapiType: typeof Vapi });
 
       let vapi = null;
 
       startBtn.onclick = async () => {
+        log({ event: "start-clicked" });
+
         const publicKey = publicKeyEl.value.trim();
         const assistantId = assistantIdEl.value.trim();
 
-        if (!publicKey) {
-          setStatus("missing public key");
-          return;
-        }
-        if (!assistantId) {
-          setStatus("missing assistant id");
-          return;
-        }
+        if (!publicKey) return setStatus("missing public key");
+        if (!assistantId) return setStatus("missing assistant id");
 
         try {
           setStatus("starting...");
@@ -88,7 +88,6 @@
             log({ event: "error", error: e });
           });
 
-          // Optional: see transcript events (if emitted)
           vapi.on("message", (m) => log({ event: "message", message: m }));
 
           await vapi.start(assistantId);
