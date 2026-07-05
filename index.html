@@ -45,9 +45,7 @@
       const publicKeyEl = document.getElementById("publicKey");
       const assistantIdEl = document.getElementById("assistantId");
 
-      function setStatus(s) {
-        statusEl.textContent = `Status: ${s}`;
-      }
+      function setStatus(s) { statusEl.textContent = `Status: ${s}`; }
 
       function log(obj) {
         try {
@@ -60,8 +58,7 @@
         }
       }
 
-      if (buildEl) buildEl.textContent = `Build: ${new Date().toISOString()}`;
-
+      buildEl.textContent = `Build: ${new Date().toISOString()}`;
       setStatus("ready");
       log({ event: "script-loaded", vapiType: typeof Vapi });
 
