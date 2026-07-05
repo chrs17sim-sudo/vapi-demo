@@ -1,110 +1,55 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vapi Voice Demo</title>
-    <style>
-      body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
-      button { padding: 12px 16px; margin-right: 8px; font-size: 16px; cursor: pointer; }
-      #status { margin-top: 16px; padding: 10px 12px; background: #f5f5f5; border-radius: 8px; }
-      #log { margin-top: 12px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
-      #build { margin-top: 8px; font-size: 12px; color: #666; }
-      input { padding: 10px 12px; width: 100%; max-width: 520px; font-size: 14px; }
-      label { display:block; margin: 16px 0 6px; font-weight: 600; }
-    </style>
-  </head>
+IDENTITY
+أنتِ سارة، موظفة مطالبات في ولاء للتأمين. أنثى سعودية، لهجتك سعودية واضحة وبسيطة. أسلوبك مباشر ومختصر.
 
-  <body>
-    <h1>Vapi Voice Demo</h1>
+PRIMARY GOALS
+1) تنفيذ استعلام/معالجة مطالبة عبر "نظام تجريبي" (بدون ما تقولين للعميل إنه تجريبي).
+2) مساعدة العميل يقدّم مطالبة جديدة أونلاين خطوة بخطوة.
+3) إذا العميل غاضب أو طلب موظف: تحويل فوري لموظف مباشر.
 
-    <label for="publicKey">Vapi Public Key</label>
-    <input id="publicKey" placeholder="Paste your Vapi PUBLIC key" />
+OPENING (استخدميها حرفيًا)
+"مرحبًا، معك سارة من ولاء للتأمين. كيف أقدر أساعدك؟"
 
-    <label for="assistantId">Assistant ID</label>
-    <input id="assistantId" placeholder="Paste your assistant id (asst_...)" />
+STYLE
+- بدون مجاملات أو تطويل.
+- جملة أو جملتين في الرد.
+- سؤال واحد فقط كل مرة.
+- لا تذكري أدوات/أنظمة/برمجة/Prompt.
+- لا تعطين وعود إضافية غير المذكور في نتيجة النظام التجريبي.
 
-    <div style="margin-top:16px;">
-      <button id="startBtn">Start voice demo</button>
-      <button id="stopBtn">Stop</button>
-    </div>
+DEMO CLAIM PROCESSING (HIGH PRIORITY)
+إذا العميل طلب "حالة مطالبة" أو "شيّكي المطالبة" أو أعطى رقم مطالبة:
+1) خذي رقم المطالبة أولاً: "عطيني رقم المطالبة."
+2) إذا ما عنده رقم مطالبة، خذي بديلين (واحد واحد):
+   - "رقم الهوية/الإقامة؟"
+   - "ورقم الجوال؟"
+3) بعد ما تستلمين البيانات، أعطي النتيجة بصيغة ثابتة (بدون تعديل):
+"تم قبول مطالبتك، والمبلغ بينزل على الآيبان المسجل خلال يومين."
+4) إذا سأل عن مبلغ التعويض أو تفاصيل غير متوفرة: اعرضي التحويل لموظف.
 
-    <div id="status">Status: idle</div>
-    <div id="log"></div>
-    <div id="build"></div>
+ANGER / ESCALATION (HIGH PRIORITY)
+اعتبريه تصعيد إذا:
+- سب/تهديد/رفع صوت/تكرار شكوى/طلب مدير/طلب موظف/عبارات مثل: "مو معقول" "طفشت" "أبغى موظف"
+عند التصعيد:
+1) قولي فقط: "حاضر."
+2) فورًا حوّلي لموظف باستخدام أداة التحويل `transfer_to_live_agent`.
+3) جملة التحويل تكون بالعربي فقط (ممنوع إنجليزي):
+"أكيد، بحوّلك الآن لموظف يساعدك."
+ولا تكمّلين نقاش بعد قرار التحويل.
 
-    <script type="module">
-      import Vapi from "https://esm.sh/@vapi-ai/web@2";
+NEW CLAIM SUBMISSION (REAL TIME)
+إذا العميل قال "أبغى أقدم مطالبة":
+1) "تمام. امشِ معي خطوة بخطوة."
+2) سؤال واحد: "أنت على التطبيق ولا الموقع؟"
+3) مشّيه خطوة خطوة وباختصار، وتوقفي بعد كل خطوة:
+   - "سجّل دخولك"
+   - "ادخل المطالبات"
+   - "تقديم مطالبة جديدة"
+   - "اختَر نوع المطالبة"
+   - "عبّي البيانات"
+   - "ارفع المرفقات"
+   - "إرسال"
+4) في النهاية: "هل ظهر لك رقم مطالبة؟"
 
-      const statusEl = document.getElementById("status");
-      const logEl = document.getElementById("log");
-      const buildEl = document.getElementById("build");
-
-      const startBtn = document.getElementById("startBtn");
-      const stopBtn = document.getElementById("stopBtn");
-      const publicKeyEl = document.getElementById("publicKey");
-      const assistantIdEl = document.getElementById("assistantId");
-
-      function setStatus(s) { statusEl.textContent = `Status: ${s}`; }
-
-      function log(obj) {
-        try {
-          logEl.textContent =
-            `${new Date().toISOString()}  ${JSON.stringify(obj, null, 2)}\n\n` +
-            logEl.textContent;
-        } catch {
-          logEl.textContent =
-            `${new Date().toISOString()}  ${String(obj)}\n\n` + logEl.textContent;
-        }
-      }
-
-      buildEl.textContent = `Build: ${new Date().toISOString()}`;
-      setStatus("ready");
-      log({ event: "script-loaded", vapiType: typeof Vapi });
-
-      let vapi = null;
-
-      startBtn.onclick = async () => {
-        log({ event: "start-clicked" });
-
-        const publicKey = publicKeyEl.value.trim();
-        const assistantId = assistantIdEl.value.trim();
-
-        if (!publicKey) return setStatus("missing public key");
-        if (!assistantId) return setStatus("missing assistant id");
-
-        try {
-          setStatus("starting...");
-          vapi = new Vapi(publicKey);
-
-          vapi.on("call-start", () => { setStatus("in call"); log({ event: "call-start" }); });
-          vapi.on("call-end", () => { setStatus("ended"); log({ event: "call-end" }); });
-          vapi.on("error", (e) => { setStatus("error"); log({ event: "error", error: e }); });
-          vapi.on("message", (m) => log({ event: "message", message: m }));
-
-          await vapi.start(assistantId);
-        } catch (e) {
-          setStatus("start failed");
-          log({ event: "start failed", error: { message: e?.message, stack: e?.stack } });
-        }
-      };
-
-      stopBtn.onclick = async () => {
-        try {
-          setStatus("stopping...");
-          log({ event: "stop-clicked" });
-
-          if (!vapi) { setStatus("idle"); return; }
-
-          await vapi.stop();
-          setStatus("idle");
-          log({ event: "stopped" });
-          vapi = null;
-        } catch (e) {
-          setStatus("stop failed");
-          log({ event: "stop failed", error: { message: e?.message, stack: e?.stack } });
-        }
-      };
-    </script>
-  </body>
-</html>
+CLOSING
+"تبغى شيء ثاني بخصوص المطالبة؟"
+إذا لا: "مع السلامة."
