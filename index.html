@@ -3,30 +3,113 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vapi Demo</title>
+    <title>Vapi Demo (Start/Stop)</title>
 
-    <script
-      src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js"
-      defer
-      async
-    ></script>
+    <!-- Vapi Web SDK (UMD build) -->
+    <script src="https://unpkg.com/@vapi-ai/web/dist/index.umd.js"></script>
+
+    <style>
+      body { font-family: system-ui, Arial; padding: 24px; max-width: 720px; margin: 0 auto; }
+      label { display: block; margin-top: 12px; font-weight: 600; }
+      input { width: 100%; padding: 10px; margin-top: 6px; font-size: 14px; }
+      button { padding: 10px 14px; margin-top: 14px; margin-right: 10px; }
+      #status { margin-top: 14px; padding: 10px; background: #f6f8fa; border-radius: 8px; }
+      code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
+    </style>
   </head>
 
   <body>
     <h1>Vapi Demo</h1>
-    <p>Click the widget in the bottom-right to start a call.</p>
+
+    <label>Vapi Public Key</label>
+    <input id="publicKey" placeholder="Paste Vapi PUBLIC key here" autocomplete="off" />
+
+    <label>Assistant ID</label>
+    <input
+      id="assistantId"
+      value="20d6b459-5199-4bbd-b1df-9a8cf169aa99"
+      placeholder="asst_..."
+      autocomplete="off"
+    />
+
+    <div>
+      <button id="startBtn">Start Call</button>
+      <button id="stopBtn" disabled>Stop Call</button>
+    </div>
+
+    <div id="status">Status: idle</div>
 
     <script>
-  function startWidget() {
-    if (!window.vapiSDK) return setTimeout(startWidget, 200);
+      const statusEl = document.getElementById("status");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
 
-    window.vapiSDK.run({
-      apiKey: "YOUR_PUBLIC_VAPI_KEY",
-      assistant: "20d6b459-5199-4bbd-b1df-9a8cf169aa99",
-      config: { position: "bottom-right" }
-    });
-  }
-  startWidget();
-</script>
+      const publicKeyEl = document.getElementById("publicKey");
+      const assistantIdEl = document.getElementById("assistantId");
+
+      let vapi = null;
+      let isInCall = false;
+
+      function setStatus(text) {
+        statusEl.textContent = `Status: ${text}`;
+      }
+
+      function setButtons() {
+        startBtn.disabled = isInCall;
+        stopBtn.disabled = !isInCall;
+      }
+
+      startBtn.addEventListener("click", async () => {
+        const publicKey = publicKeyEl.value.trim();
+        const assistantId = assistantIdEl.value.trim();
+
+        if (!publicKey) return setStatus("missing public key");
+        if (!assistantId) return setStatus("missing assistant id");
+
+        try {
+          if (!vapi) {
+            // Create client
+            vapi = new window.Vapi(publicKey);
+
+            // Event listeners
+            vapi.on("call-start", () => {
+              isInCall = true;
+              setButtons();
+              setStatus("in call");
+            });
+
+            vapi.on("call-end", () => {
+              isInCall = false;
+              setButtons();
+              setStatus("ended");
+            });
+
+            vapi.on("error", (e) => {
+              console.error(e);
+              setStatus("error (see console)");
+            });
+          }
+
+          setStatus("starting...");
+          await vapi.start(assistantId);
+        } catch (e) {
+          console.error(e);
+          setStatus("failed to start (see console)");
+        }
+      });
+
+      stopBtn.addEventListener("click", async () => {
+        try {
+          if (!vapi) return;
+          setStatus("stopping...");
+          await vapi.stop();
+        } catch (e) {
+          console.error(e);
+          setStatus("failed to stop (see console)");
+        }
+      });
+
+      setButtons();
+    </script>
   </body>
 </html>
