@@ -3,15 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vapi Demo (Widget Element)</title>
+    <title>Vapi Demo (Script Load Debug)</title>
     <link rel="icon" href="data:," />
-
-    <!-- Loads the custom element definition for <vapi-widget> -->
-    <script
-      src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js"
-      defer
-      async
-    ></script>
 
     <style>
       body { font-family: system-ui, Arial; padding: 24px; max-width: 820px; margin: 0 auto; }
@@ -21,36 +14,28 @@
       #status { margin-top: 14px; padding: 10px; background: #f6f8fa; border-radius: 8px; white-space: pre-wrap; }
       #debug { margin-top: 14px; padding: 10px; background: #0b1020; color: #d6e1ff; border-radius: 8px; white-space: pre-wrap;
                font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-      small { display: block; margin-top: 6px; color: #555; }
-
-      /* Force visibility */
       #widgetSlot { margin-top: 18px; padding: 12px; border: 1px dashed #bbb; border-radius: 10px; min-height: 90px; }
-      vapi-widget { display: block; }
+      small { display: block; margin-top: 6px; color: #555; }
     </style>
   </head>
 
   <body>
     <h1>Vapi Demo</h1>
 
+    <div id="status">Status: loading Vapi widget script…</div>
+    <div id="debug">Debug log:</div>
+
     <label for="publicKey">Vapi Public Key</label>
     <input id="publicKey" placeholder="Paste Vapi PUBLIC key here" autocomplete="off" />
     <small>Use a Public key only.</small>
 
     <label for="assistantId">Assistant ID</label>
-    <input
-      id="assistantId"
-      value="20d6b459-5199-4bbd-b1df-9a8cf169aa99"
-      placeholder="assistant-id"
-      autocomplete="off"
-    />
+    <input id="assistantId" value="20d6b459-5199-4bbd-b1df-9a8cf169aa99" autocomplete="off" />
 
     <div>
-      <button id="startBtn">Start (insert widget element)</button>
-      <button id="stopBtn" disabled>Stop (remove widget element)</button>
+      <button id="startBtn">Start (insert widget)</button>
+      <button id="stopBtn" disabled>Stop</button>
     </div>
-
-    <div id="status">Status: idle</div>
-    <div id="debug">Debug log:</div>
 
     <h2>Widget slot</h2>
     <div id="widgetSlot">Widget will appear here.</div>
@@ -58,27 +43,32 @@
     <script>
       const statusEl = document.getElementById("status");
       const debugEl = document.getElementById("debug");
+      const widgetSlot = document.getElementById("widgetSlot");
       const startBtn = document.getElementById("startBtn");
       const stopBtn = document.getElementById("stopBtn");
       const publicKeyEl = document.getElementById("publicKey");
       const assistantIdEl = document.getElementById("assistantId");
-      const widgetSlot = document.getElementById("widgetSlot");
-
-      let running = false;
 
       function log(msg, obj) {
         console.log(msg, obj || "");
         debugEl.textContent += `\n${msg}${obj ? " " + JSON.stringify(obj, null, 2) : ""}`;
       }
       function setStatus(text) { statusEl.textContent = `Status: ${text}`; }
-      function setButtons() { startBtn.disabled = running; stopBtn.disabled = !running; }
 
-      function waitForCustomElement(cb, tries = 60) {
-        // Ensure the custom element is registered
-        if (window.customElements && customElements.get("vapi-widget")) return cb();
-        if (tries <= 0) return setStatus("<vapi-widget> not registered (script not loaded)");
-        setTimeout(() => waitForCustomElement(cb, tries - 1), 200);
-      }
+      // Load the Vapi widget script with explicit success/failure callbacks
+      const scriptUrl = "https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js";
+      const s = document.createElement("script");
+      s.src = scriptUrl;
+      s.onload = () => {
+        const registered = !!(window.customElements && customElements.get("vapi-widget"));
+        setStatus(`widget script loaded. vapi-widget registered = ${registered}`);
+        log("script loaded", { scriptUrl, registered });
+      };
+      s.onerror = (e) => {
+        setStatus("FAILED to load widget script (see debug log)");
+        log("script failed to load", { scriptUrl, error: String(e) });
+      };
+      document.head.appendChild(s);
 
       function removeWidget() {
         widgetSlot.querySelectorAll("vapi-widget").forEach(el => el.remove());
@@ -91,44 +81,28 @@
         if (!apiKey) return setStatus("missing public key");
         if (!assistant) return setStatus("missing assistant id");
 
-        setStatus("loading widget element...");
-        waitForCustomElement(() => {
-          try {
-            removeWidget();
+        const registered = !!(window.customElements && customElements.get("vapi-widget"));
+        if (!registered) return setStatus("vapi-widget not registered (script still not loaded)");
 
-            const el = document.createElement("vapi-widget");
+        removeWidget();
+        const el = document.createElement("vapi-widget");
+        el.setAttribute("api-key", apiKey);
+        el.setAttribute("assistant", assistant);
 
-            // Most builds accept these attributes; if yours uses a different schema,
-            // this will still prove whether the element is inserted + registered.
-            el.setAttribute("assistant", assistant);
-            el.setAttribute("api-key", apiKey);
+        widgetSlot.innerHTML = "";
+        widgetSlot.appendChild(el);
 
-            widgetSlot.innerHTML = "";
-            widgetSlot.appendChild(el);
-
-            running = true;
-            setButtons();
-            setStatus("widget element inserted (check widget slot)");
-            log("Inserted <vapi-widget>", { assistant });
-
-            log("DOM count", { count: document.querySelectorAll("vapi-widget").length });
-          } catch (e) {
-            log("Start failed", { message: e?.message, stack: e?.stack });
-            setStatus("start failed (see console/debug log)");
-          }
-        });
+        stopBtn.disabled = false;
+        setStatus("inserted <vapi-widget> into widget slot");
+        log("inserted widget", { assistant });
       });
 
       stopBtn.addEventListener("click", () => {
         removeWidget();
-        running = false;
-        setButtons();
+        stopBtn.disabled = true;
         setStatus("stopped (widget removed)");
-        log("Removed <vapi-widget>");
+        log("removed widget");
       });
-
-      window.addEventListener("error", (e) => log("window.onerror", { message: e.message }));
-      setButtons();
     </script>
   </body>
 </html>
