@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vapi Demo (Run + Verify)</title>
+    <title>Vapi Demo (Pinned Web SDK)</title>
     <link rel="icon" href="data:," />
 
     <style>
@@ -14,7 +14,7 @@
       #status { margin-top: 14px; padding: 10px; background: #f6f8fa; border-radius: 8px; white-space: pre-wrap; }
       #debug { margin-top: 14px; padding: 10px; background: #0b1020; color: #d6e1ff; border-radius: 8px; white-space: pre-wrap;
                font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-      code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
+      small { display: block; margin-top: 6px; color: #555; }
     </style>
   </head>
 
@@ -23,25 +23,26 @@
 
     <label for="publicKey">Vapi Public Key</label>
     <input id="publicKey" placeholder="Paste Vapi PUBLIC key here" autocomplete="off" />
+    <small>Use a Public key only.</small>
 
     <label for="assistantId">Assistant ID</label>
     <input id="assistantId" value="20d6b459-5199-4bbd-b1df-9a8cf169aa99" autocomplete="off" />
 
     <div>
-      <button id="startBtn">Start (vapiSDK.run)</button>
-      <button id="checkBtn">Check injected elements</button>
+      <button id="startBtn">Start Call</button>
+      <button id="stopBtn" disabled>Stop Call</button>
     </div>
 
-    <div id="status">Status: loading widget script…</div>
+    <div id="status">Status: loading SDK…</div>
     <div id="debug">Debug log:</div>
 
-    <script>
+    <script type="module">
       const statusEl = document.getElementById("status");
       const debugEl = document.getElementById("debug");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
       const publicKeyEl = document.getElementById("publicKey");
       const assistantIdEl = document.getElementById("assistantId");
-      const startBtn = document.getElementById("startBtn");
-      const checkBtn = document.getElementById("checkBtn");
 
       function log(msg, obj) {
         console.log(msg, obj || "");
@@ -49,64 +50,81 @@
       }
       function setStatus(text) { statusEl.textContent = `Status: ${text}`; }
 
-      // Load script explicitly
-      const scriptUrl = "https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js";
-      const s = document.createElement("script");
-      s.src = scriptUrl;
+      let vapi = null;
+      let inCall = false;
 
-      s.onload = () => {
-        const hasSDK = !!window.vapiSDK;
-        const hasRun = !!(window.vapiSDK && typeof window.vapiSDK.run === "function");
-        setStatus(`script loaded. vapiSDK=${hasSDK} run=${hasRun}`);
-        log("script loaded", { scriptUrl, hasSDK, hasRun });
-      };
-
-      s.onerror = (e) => {
-        setStatus("FAILED to load widget script");
-        log("script failed", { scriptUrl, error: String(e) });
-      };
-
-      document.head.appendChild(s);
-
-      function checkInjected() {
-        const widgets = document.querySelectorAll("vapi-widget").length;
-        const iframes = Array.from(document.querySelectorAll("iframe")).map(f => f.src).slice(0, 10);
-        const buttons = Array.from(document.querySelectorAll("button")).map(b => b.textContent).slice(0, 20);
-
-        log("injected check", { vapiWidgetCount: widgets, iframeSrcs: iframes, pageButtons: buttons });
-        setStatus(`checked. vapi-widget=${widgets}, iframes=${iframes.length} (see debug log)`);
+      function setButtons() {
+        startBtn.disabled = inCall;
+        stopBtn.disabled = !inCall;
       }
 
-      startBtn.addEventListener("click", () => {
-        const apiKey = publicKeyEl.value.trim();
-        const assistant = assistantIdEl.value.trim();
+      // IMPORTANT: pin a version (try 2.4.0 first). If it still fails, we’ll bump again.
+      const PINNED = "2.4.0";
 
-        if (!apiKey) return setStatus("missing public key");
-        if (!assistant) return setStatus("missing assistant id");
-        if (!window.vapiSDK || typeof window.vapiSDK.run !== "function") {
-          return setStatus("vapiSDK.run not available (script not ready)");
-        }
+      setStatus(`importing @vapi-ai/web@${PINNED}…`);
+      let Vapi;
+      try {
+        const mod = await import(`https://esm.sh/@vapi-ai/web@${PINNED}`);
+        Vapi = mod.default;
+        setStatus(`SDK loaded (@vapi-ai/web@${PINNED})`);
+        log("SDK loaded", { pinned: PINNED, hasDefault: !!Vapi });
+      } catch (e) {
+        setStatus("SDK import failed (see debug log)");
+        log("Import failed", { message: e?.message, stack: e?.stack });
+        throw e;
+      }
+
+      startBtn.addEventListener("click", async () => {
+        const publicKey = publicKeyEl.value.trim();
+        const assistantId = assistantIdEl.value.trim();
+
+        if (!publicKey) return setStatus("missing public key");
+        if (!assistantId) return setStatus("missing assistant id");
 
         try {
-          setStatus("calling vapiSDK.run...");
-          log("calling vapiSDK.run", { assistant });
+          if (!vapi) {
+            vapi = new Vapi(publicKey);
 
-          window.vapiSDK.run({
-            apiKey,
-            assistant,
-            config: { position: "bottom-right" }
-          });
+            vapi.on("call-start", () => {
+              inCall = true;
+              setButtons();
+              setStatus("in call");
+            });
 
-          setStatus("vapiSDK.run called. Now check injection.");
-          // check after a moment
-          setTimeout(checkInjected, 800);
+            vapi.on("call-end", () => {
+              inCall = false;
+              setButtons();
+              setStatus("ended");
+            });
+
+            vapi.on("error", (e) => {
+              log("Vapi error", e);
+              setStatus(`error: ${e?.error?.message || e?.message || "see debug log"}`);
+            });
+          }
+
+          setStatus("starting… (browser will ask for mic permission)");
+          log("Starting call", { assistantId });
+
+          await vapi.start(assistantId);
         } catch (e) {
-          setStatus("vapiSDK.run threw error (see debug log)");
-          log("run error", { message: e?.message, stack: e?.stack });
+          log("Start failed", { message: e?.message, stack: e?.stack });
+          setStatus("failed to start (see debug log)");
         }
       });
 
-      checkBtn.addEventListener("click", checkInjected);
+      stopBtn.addEventListener("click", async () => {
+        try {
+          if (!vapi) return;
+          setStatus("stopping…");
+          await vapi.stop();
+        } catch (e) {
+          log("Stop failed", { message: e?.message, stack: e?.stack });
+          setStatus("failed to stop (see debug log)");
+        }
+      });
+
+      setButtons();
     </script>
   </body>
 </html>
