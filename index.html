@@ -3,9 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vapi Demo (Start/Stop)</title>
+    <title>Vapi Demo (Fields + Start/Stop)</title>
 
     <link rel="icon" href="data:," />
+
+    <!-- Official Vapi widget script-tag build (more reliable on GitHub Pages) -->
+    <script
+      src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js"
+      defer
+      async
+    ></script>
 
     <style>
       body { font-family: system-ui, Arial; padding: 24px; max-width: 820px; margin: 0 auto; }
@@ -13,19 +20,19 @@
       input { width: 100%; padding: 10px; margin-top: 6px; font-size: 14px; }
       button { padding: 10px 14px; margin-top: 14px; margin-right: 10px; }
       #status { margin-top: 14px; padding: 10px; background: #f6f8fa; border-radius: 8px; white-space: pre-wrap; }
-      #debug { margin-top: 14px; padding: 10px; background: #0b1020; color: #d6e1ff; border-radius: 8px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      #debug { margin-top: 14px; padding: 10px; background: #0b1020; color: #d6e1ff; border-radius: 8px; white-space: pre-wrap;
+               font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
       small { display: block; margin-top: 6px; color: #555; }
-      code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
     </style>
   </head>
 
   <body>
     <h1>Vapi Demo</h1>
-    <p>This page loads the Vapi Web SDK via ESM (more reliable than UMD on some setups).</p>
+    <p>This version uses the official <code>vapiSDK.run()</code> widget script.</p>
 
     <label>Vapi Public Key</label>
     <input id="publicKey" placeholder="Paste Vapi PUBLIC key here" autocomplete="off" />
-    <small>Use a <b>Public</b> key only (safe for browser). Never paste a Private key here.</small>
+    <small>Use a <b>Public</b> key only.</small>
 
     <label>Assistant ID</label>
     <input
@@ -36,128 +43,107 @@
     />
 
     <div>
-      <button id="startBtn">Start Call</button>
-      <button id="stopBtn" disabled>Stop Call</button>
+      <button id="startBtn">Start</button>
+      <button id="stopBtn" disabled>Stop</button>
     </div>
 
     <div id="status">Status: idle</div>
     <div id="debug">Debug log:\n</div>
 
-    <!-- Load Vapi Web SDK (ESM) -->
-    <script type="module">
-      const debugEl = document.getElementById("debug");
+    <script>
       const statusEl = document.getElementById("status");
+      const debugEl = document.getElementById("debug");
       const startBtn = document.getElementById("startBtn");
       const stopBtn = document.getElementById("stopBtn");
       const publicKeyEl = document.getElementById("publicKey");
       const assistantIdEl = document.getElementById("assistantId");
 
+      let running = false;
+
       function log(...args) {
         console.log(...args);
-        debugEl.textContent += args.map(a => typeof a === "string" ? a : JSON.stringify(a, null, 2)).join(" ") + "\n";
+        debugEl.textContent +=
+          args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ") + "\n";
       }
+
       function setStatus(text) {
         statusEl.textContent = `Status: ${text}`;
       }
 
-      let vapi = null;
-      let isInCall = false;
-
       function setButtons() {
-        startBtn.disabled = isInCall;
-        stopBtn.disabled = !isInCall;
+        startBtn.disabled = running;
+        stopBtn.disabled = !running;
       }
 
-      // Try multiple ESM CDNs for resilience
-      async function importVapi() {
-        const urls = [
-          "https://cdn.skypack.dev/@vapi-ai/web",
-          "https://esm.sh/@vapi-ai/web",
-          "https://unpkg.com/@vapi-ai/web?module"
-        ];
+      function waitForWidget(cb, tries = 50) {
+        if (window.vapiSDK && typeof window.vapiSDK.run === "function") return cb();
+        if (tries <= 0) {
+          setStatus("vapiSDK not loaded (check Network for index.js)");
+          return;
+        }
+        setTimeout(() => waitForWidget(cb, tries - 1), 200);
+      }
 
-        for (const url of urls) {
+      function removeWidget() {
+        // The script-tag widget injects UI; easiest “stop” on a static page is to remove injected elements.
+        // Remove the widget container/iframe if present.
+        const widget = document.querySelector("vapi-widget");
+        if (widget) widget.remove();
+
+        const iframes = Array.from(document.querySelectorAll("iframe"));
+        for (const f of iframes) {
+          // Heuristic: remove Daily/Vapi iframes that appear after starting
+          const src = (f.getAttribute("src") || "").toLowerCase();
+          if (src.includes("daily") || src.includes("vapi")) f.remove();
+        }
+      }
+
+      startBtn.addEventListener("click", () => {
+        const apiKey = publicKeyEl.value.trim();
+        const assistant = assistantIdEl.value.trim();
+
+        if (!apiKey) return setStatus("missing public key");
+        if (!assistant) return setStatus("missing assistant id");
+
+        waitForWidget(() => {
           try {
-            log(`Trying import: ${url}`);
-            const mod = await import(url);
-            const VapiCtor = mod?.default || mod?.Vapi || mod;
-            if (VapiCtor) {
-              log("Loaded Vapi SDK from:", url);
-              return VapiCtor;
-            }
+            setStatus("starting widget...");
+            log("Starting widget with assistant:", assistant);
+
+            // Clean any previous widget remnants before starting
+            removeWidget();
+
+            window.vapiSDK.run({
+              apiKey,
+              assistant,
+              config: { position: "bottom-right" }
+            });
+
+            running = true;
+            setButtons();
+            setStatus("running (use the widget bottom-right)");
           } catch (e) {
-            log("Import failed:", url, String(e?.message || e));
+            log("Start failed:", e?.stack || String(e));
+            setStatus("start failed (see console/debug log)");
           }
-        }
-        return null;
-      }
-
-      const VapiCtor = await importVapi();
-      log("VapiCtor type:", typeof VapiCtor);
-
-      if (!VapiCtor) {
-        setStatus("Vapi SDK failed to load (see debug log)");
-        setButtons();
-        throw new Error("Vapi SDK failed to load from all CDNs");
-      } else {
-        setStatus("SDK loaded (ready)");
-      }
-
-      function attachListeners(client) {
-        client.on("call-start", () => {
-          isInCall = true;
-          setButtons();
-          setStatus("in call");
         });
-
-        client.on("call-end", () => {
-          isInCall = false;
-          setButtons();
-          setStatus("ended");
-        });
-
-        client.on("error", (e) => {
-          log("Vapi error event:", e);
-          setStatus("error (see debug log)");
-        });
-      }
-
-      startBtn.addEventListener("click", async () => {
-        const publicKey = publicKeyEl.value.trim();
-        const assistantId = assistantIdEl.value.trim();
-
-        if (!publicKey) return setStatus("missing public key");
-        if (!assistantId) return setStatus("missing assistant id");
-
-        try {
-          if (!vapi) {
-            vapi = new VapiCtor(publicKey);
-            attachListeners(vapi);
-            log("Created Vapi client");
-          }
-
-          setStatus("starting...");
-          log("Starting with assistantId:", assistantId);
-          await vapi.start(assistantId);
-        } catch (e) {
-          log("Start failed:", e?.stack || String(e));
-          setStatus("failed to start (see debug log)");
-        }
       });
 
-      stopBtn.addEventListener("click", async () => {
+      stopBtn.addEventListener("click", () => {
         try {
-          if (!vapi) return;
           setStatus("stopping...");
-          await vapi.stop();
+          removeWidget();
+          running = false;
+          setButtons();
+          setStatus("stopped");
         } catch (e) {
           log("Stop failed:", e?.stack || String(e));
-          setStatus("failed to stop (see debug log)");
+          setStatus("stop failed (see console/debug log)");
         }
       });
 
+      window.addEventListener("error", (e) => log("window.onerror:", e.message));
       setButtons();
-      log("Page initialized.");
     </script>
   </body>
 </html>
