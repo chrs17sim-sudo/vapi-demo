@@ -17,13 +17,16 @@
     <p>Click the widget in the bottom-right to start a call.</p>
 
     <script>
-      window.addEventListener("load", () => {
-        window.vapiSDK.run({
-          apiKey: "PASTE_YOUR_VAPI_PUBLIC_KEY_HERE",
-          assistant: "20d6b459-5199-4bbd-b1df-9a8cf169aa99",
-          config: { position: "bottom-right" }
-        });
-      });
-    </script>
+  function startWidget() {
+    if (!window.vapiSDK) return setTimeout(startWidget, 200);
+
+    window.vapiSDK.run({
+      apiKey: "YOUR_PUBLIC_VAPI_KEY",
+      assistant: "20d6b459-5199-4bbd-b1df-9a8cf169aa99",
+      config: { position: "bottom-right" }
+    });
+  }
+  startWidget();
+</script>
   </body>
 </html>
