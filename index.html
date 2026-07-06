@@ -5,16 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Vapi Demo (Start/Stop)</title>
 
+    <!-- Prevent favicon 404 noise -->
+    <link rel="icon" href="data:," />
+
     <!-- Vapi Web SDK (UMD build) -->
-    <script src="https://unpkg.com/@vapi-ai/web/dist/index.umd.js"></script>
+    <!-- Switched from unpkg to jsDelivr for more reliable UMD delivery -->
+    <script src="https://cdn.jsdelivr.net/npm/@vapi-ai/web@latest/dist/index.umd.js"></script>
 
     <style>
-      body { font-family: system-ui, Arial; padding: 24px; max-width: 720px; margin: 0 auto; }
-      label { display: block; margin-top: 12px; font-weight: 600; }
-      input { width: 100%; padding: 10px; margin-top: 6px; font-size: 14px; }
-      button { padding: 10px 14px; margin-top: 14px; margin-right: 10px; }
-      #status { margin-top: 14px; padding: 10px; background: #f6f8fa; border-radius: 8px; }
-      code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
+      body {
+        font-family: system-ui, Arial;
+        padding: 24px;
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        margin-top: 6px;
+        font-size: 14px;
+      }
+      button {
+        padding: 10px 14px;
+        margin-top: 14px;
+        margin-right: 10px;
+      }
+      #status {
+        margin-top: 14px;
+        padding: 10px;
+        background: #f6f8fa;
+        border-radius: 8px;
+        white-space: pre-wrap;
+      }
+      small {
+        display: block;
+        margin-top: 6px;
+        color: #555;
+      }
+      code {
+        background: #f6f8fa;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
     </style>
   </head>
 
@@ -23,12 +60,13 @@
 
     <label>Vapi Public Key</label>
     <input id="publicKey" placeholder="Paste Vapi PUBLIC key here" autocomplete="off" />
+    <small>Use a <b>Public</b> key. Do not use your Private key in a browser.</small>
 
     <label>Assistant ID</label>
     <input
       id="assistantId"
       value="20d6b459-5199-4bbd-b1df-9a8cf169aa99"
-      placeholder="asst_..."
+      placeholder="assistant-id"
       autocomplete="off"
     />
 
@@ -59,6 +97,37 @@
         stopBtn.disabled = !isInCall;
       }
 
+      function getVapiConstructor() {
+        // Different builds may expose different globals.
+        // This tries the common ones safely.
+        return (
+          window.Vapi ||
+          (window.vapi && window.vapi.default) ||
+          (window["@vapi-ai/web"] && window["@vapi-ai/web"].default) ||
+          window.default ||
+          null
+        );
+      }
+
+      function attachListeners(client) {
+        client.on("call-start", () => {
+          isInCall = true;
+          setButtons();
+          setStatus("in call");
+        });
+
+        client.on("call-end", () => {
+          isInCall = false;
+          setButtons();
+          setStatus("ended");
+        });
+
+        client.on("error", (e) => {
+          console.error(e);
+          setStatus("error (see console for details)");
+        });
+      }
+
       startBtn.addEventListener("click", async () => {
         const publicKey = publicKeyEl.value.trim();
         const assistantId = assistantIdEl.value.trim();
@@ -68,26 +137,18 @@
 
         try {
           if (!vapi) {
-            // Create client
-            vapi = new window.Vapi(publicKey);
+            const VapiCtor = getVapiConstructor();
+            console.log("Detected Vapi constructor:", VapiCtor);
 
-            // Event listeners
-            vapi.on("call-start", () => {
-              isInCall = true;
-              setButtons();
-              setStatus("in call");
-            });
+            if (!VapiCtor) {
+              setStatus(
+                "Vapi SDK not loaded.\nOpen DevTools -> Console and check network for index.umd.js."
+              );
+              return;
+            }
 
-            vapi.on("call-end", () => {
-              isInCall = false;
-              setButtons();
-              setStatus("ended");
-            });
-
-            vapi.on("error", (e) => {
-              console.error(e);
-              setStatus("error (see console)");
-            });
+            vapi = new VapiCtor(publicKey);
+            attachListeners(vapi);
           }
 
           setStatus("starting...");
@@ -107,6 +168,13 @@
           console.error(e);
           setStatus("failed to stop (see console)");
         }
+      });
+
+      // Helpful: show whether SDK seems present on load
+      window.addEventListener("load", () => {
+        const ctor = getVapiConstructor();
+        console.log("Vapi global keys:", Object.keys(window).filter(k => k.toLowerCase().includes("vapi")));
+        console.log("Vapi constructor on load:", ctor);
       });
 
       setButtons();
