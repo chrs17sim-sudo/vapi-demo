@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vapi Demo</title>
+    <title>Vapi Demo (Fields + Widget)</title>
     <link rel="icon" href="data:," />
 
     <script
@@ -13,24 +13,25 @@
     ></script>
 
     <style>
-      body { font-family: system-ui, Arial; padding: 24px; max-width: 920px; margin: 0 auto; }
+      body { font-family: system-ui, Arial; padding: 24px; max-width: 820px; margin: 0 auto; }
       label { display: block; margin-top: 12px; font-weight: 600; }
       input { width: 100%; padding: 10px; margin-top: 6px; font-size: 14px; }
       button { padding: 10px 14px; margin-top: 14px; margin-right: 10px; }
       #status { margin-top: 14px; padding: 10px; background: #f6f8fa; border-radius: 8px; white-space: pre-wrap; }
       #debug { margin-top: 14px; padding: 10px; background: #0b1020; color: #d6e1ff; border-radius: 8px; white-space: pre-wrap;
                font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-      #widgetMount { margin-top: 18px; padding: 14px; border: 1px solid #ddd; border-radius: 10px; min-height: 120px; }
-      .hint { color: #555; margin-top: 6px; font-size: 13px; }
+      small { display: block; margin-top: 6px; color: #555; }
+      code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
     </style>
   </head>
 
   <body>
     <h1>Vapi Demo</h1>
+    <p>Start will open the Vapi widget in the <b>bottom-right</b>.</p>
 
     <label for="publicKey">Vapi Public Key</label>
     <input id="publicKey" placeholder="Paste Vapi PUBLIC key here" autocomplete="off" />
-    <div class="hint">Use a Public key only.</div>
+    <small>Use a Public key only.</small>
 
     <label for="assistantId">Assistant ID</label>
     <input
@@ -41,15 +42,12 @@
     />
 
     <div>
-      <button id="startBtn">Start</button>
+      <button id="startBtn">Start (show widget)</button>
       <button id="stopBtn" disabled>Stop (remove widget)</button>
     </div>
 
     <div id="status">Status: idle</div>
     <div id="debug">Debug log:</div>
-
-    <h2>Widget (inline)</h2>
-    <div id="widgetMount">Widget will render here after you click Start.</div>
 
     <script>
       const statusEl = document.getElementById("status");
@@ -58,14 +56,12 @@
       const stopBtn = document.getElementById("stopBtn");
       const publicKeyEl = document.getElementById("publicKey");
       const assistantIdEl = document.getElementById("assistantId");
-      const widgetMount = document.getElementById("widgetMount");
 
       let running = false;
 
       function log(msg, obj) {
-        const line = obj ? `${msg} ${JSON.stringify(obj, null, 2)}` : msg;
         console.log(msg, obj || "");
-        debugEl.textContent += `\n${line}`;
+        debugEl.textContent += `\n${msg}${obj ? " " + JSON.stringify(obj, null, 2) : ""}`;
       }
       function setStatus(text) { statusEl.textContent = `Status: ${text}`; }
       function setButtons() { startBtn.disabled = running; stopBtn.disabled = !running; }
@@ -77,10 +73,14 @@
       }
 
       function removeWidget() {
-        // Remove any injected vapi-widget elements
+        // Remove injected widget custom element if present
         document.querySelectorAll("vapi-widget").forEach(el => el.remove());
-        // Clear mount area
-        widgetMount.innerHTML = "Widget removed. Click Start to render again.";
+
+        // Also remove likely injected floating containers/iframes (best-effort cleanup)
+        document.querySelectorAll("iframe").forEach(f => {
+          const src = (f.getAttribute("src") || "").toLowerCase();
+          if (src.includes("daily") || src.includes("vapi")) f.remove();
+        });
       }
 
       startBtn.addEventListener("click", () => {
@@ -93,27 +93,25 @@
         setStatus("loading sdk...");
         waitForSDK(() => {
           try {
-            log("vapiSDK loaded:", { hasRun: typeof window.vapiSDK.run === "function" });
+            log("vapiSDK loaded", { hasRun: typeof window.vapiSDK.run === "function" });
 
-            // Clear any previous widget
+            // clear any previous widget
             removeWidget();
 
-            // Create a mount element that the script-tag widget can use
-            // We render inline by injecting a <vapi-widget> element
-            const el = document.createElement("vapi-widget");
-            el.setAttribute("data-api-key", apiKey);
-            el.setAttribute("data-assistant", assistant);
-            el.setAttribute("data-position", "inline"); // force visible render
-            widgetMount.innerHTML = "";
-            widgetMount.appendChild(el);
+            setStatus("creating widget...");
+            window.vapiSDK.run({
+              apiKey,
+              assistant,
+              config: { position: "bottom-right" }
+            });
 
             running = true;
             setButtons();
-            setStatus("widget rendered (inline) — click it to start the call");
-
+            setStatus("widget created (bottom-right). Click it to start/stop the call.");
+            log("widget created", { assistant });
           } catch (e) {
-            log("Start failed:", { message: e?.message, stack: e?.stack });
-            setStatus("start failed (see console)");
+            log("Start failed", { message: e?.message, stack: e?.stack });
+            setStatus("start failed (see console/debug log)");
           }
         });
       });
@@ -122,10 +120,11 @@
         removeWidget();
         running = false;
         setButtons();
-        setStatus("stopped");
+        setStatus("stopped (widget removed)");
+        log("widget removed");
       });
 
-      window.addEventListener("error", (e) => log("window.onerror:", { message: e.message }));
+      window.addEventListener("error", (e) => log("window.onerror", { message: e.message }));
       setButtons();
     </script>
   </body>
